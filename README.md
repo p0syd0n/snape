@@ -33,9 +33,8 @@ The data sent by the client is a dictionary of the client id (eg: '1;2;3;4;5;6;7
       'info': 'info',
       'more-info': 'more-info'
      }
- }
+ }`
  
- `
 Every time the server recieves a check-in, it will add the client to a dictionary of conneced clients, and then clear all duplicate keys in the dictionary.
 
 To prevent confusion, one may force-clean the online dict by the `clear-cache` command.
