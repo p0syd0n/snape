@@ -22,7 +22,7 @@ Uses socketio library to connect to Dumbledoor server, then periodically checks 
 
 - open urls
 
-##on the check-in concept
+## on the check-in concept
 The client emits data every 2 seconds, as a way of telling the server "hey! im still here!".
 
 The data sent by the client is a dictionary of the client id (eg: '1;2;3;4;5;6;7;8;9;0;') followed by info about the itself such as ip adress, timezone, latitude, longitude, region, city, country, current time. The formt is like this:
