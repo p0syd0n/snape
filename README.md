@@ -25,7 +25,7 @@ Uses socketio library to connect to Dumbledoor server, then periodically checks 
 ## on the check-in concept
 The client emits data every 2 seconds, as a way of telling the server "hey! im still here!".
 
-The data sent by the client is a dictionary of the client id (eg: '1;2;3;4;5;6;7;8;9;0;') followed by info about the itself such as ip adress, timezone, latitude, longitude, region, city, country, current time. The formt is like this:
+The data sent by the client is a dictionary of the client id (eg: '1;2;3;4;5;6;7;8;9;0;') followed by info about the itself such as ip adress, timezone, latitude, longitude, region, city, country, current time. The format is like this:
 
 `{
   '1;2;34;4;5;6;7;8;9;0;': 
@@ -37,7 +37,7 @@ The data sent by the client is a dictionary of the client id (eg: '1;2;3;4;5;6;7
  
 Every time the server recieves a check-in, it will add the client to a dictionary of conneced clients, and then clear all duplicate keys in the dictionary.
 
-To prevent confusion, one may force-clean the online dict by the `clear-cache` command.
+To prevent confusion, one may force-clean the online dict by the `clear_cache` command.
 
 
 More features to be added soon. 
