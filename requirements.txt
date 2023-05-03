@@ -1,0 +1,9 @@
+python-socketio
+pytz
+requests
+pygame
+pillow
+datetime
+keyboard
+cryptography
+pyscreenshot
