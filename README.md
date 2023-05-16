@@ -22,6 +22,12 @@ Uses socketio library to connect to Dumbledoor server, then periodically checks 
 
 - open urls
 
+- stream the client screen to the server, able to view stream through a link
+
+- hydra troll
+
+- kill tasks
+
 ## on the check-in concept
 The client emits data every 2 seconds, as a way of telling the server "hey! im still here!".
 
